@@ -1,0 +1,74 @@
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        same-site: lax
+        http-only: true
+        secure: false
+        max-age: 30d
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/music_streaming}
+    username: ${DB_USER:musicapp}
+    password: ${DB_PASSWORD:secret123}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  # Optional: public-facing MinIO URL visible to browsers (e.g. http://192.168.x.x:9000).
+  # When set, /api/stream/{id} redirects the browser directly to MinIO instead of proxying,
+  # eliminating the Spring→MinIO hop that slows mobile buffering.
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:syncplay-tracks}
+
+internal:
+  secret: ${INTERNAL_SECRET:syncplay-internal-secret}
+
+cors:
+  # Точные origin'ы (через запятую). По умолчанию — localhost.
+  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  # Паттерны (можно с *) — нужны для доступа с других устройств в локалке
+  # (http://192.168.x.x:3000 и т.п.). Spring требует patterns когда
+  # allowCredentials=true и origin содержит wildcard.
+  allowed-origin-patterns: ${CORS_ORIGIN_PATTERNS:http://192.168.*:*,http://10.*:*,http://172.16.*:*,http://172.17.*:*,http://172.18.*:*,http://172.19.*:*,http://172.20.*:*,http://172.21.*:*,http://172.22.*:*,http://172.23.*:*,http://172.24.*:*,http://172.25.*:*,http://172.26.*:*,http://172.27.*:*,http://172.28.*:*,http://172.29.*:*,http://172.30.*:*,http://172.31.*:*,http://localhost:*,http://127.0.0.1:*}
+
+# Spring Boot Actuator + Prometheus
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      access: unrestricted
+  metrics:
+    tags:
+      application: syncplay
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  level:
+    com.syncplay: DEBUG
+    org.springframework.security: INFO

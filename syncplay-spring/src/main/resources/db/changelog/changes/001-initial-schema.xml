@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001-initial" author="syncplay">
+        <sql splitStatements="true" endDelimiter=";">
+<![CDATA[
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    avatar_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE tracks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(200) NOT NULL,
+    artist VARCHAR(200),
+    album VARCHAR(200),
+    genre VARCHAR(50),
+    duration_ms BIGINT NOT NULL DEFAULT 0,
+    minio_key TEXT NOT NULL,
+    cover_key TEXT,
+    file_size BIGINT NOT NULL DEFAULT 0,
+    content_type VARCHAR(50) NOT NULL,
+    uploaded_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE playlists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_public BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE playlist_tracks (
+    playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    track_id UUID NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+    position INT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (playlist_id, track_id)
+);
+
+CREATE TABLE listening_rooms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    host_id UUID NOT NULL REFERENCES users(id),
+    current_track_id UUID REFERENCES tracks(id),
+    is_active BOOLEAN DEFAULT true,
+    max_listeners INT DEFAULT 50,
+    playback_state VARCHAR(20) DEFAULT 'STOPPED',
+    position_ms BIGINT DEFAULT 0,
+    last_sync_timestamp BIGINT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE room_participants (
+    room_id UUID NOT NULL REFERENCES listening_rooms(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) DEFAULT 'LISTENER',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_id, user_id)
+);
+
+CREATE TABLE room_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES listening_rooms(id) ON DELETE CASCADE,
+    track_id UUID NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+    added_by UUID NOT NULL REFERENCES users(id),
+    position INT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE track_likes (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    track_id UUID NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+    liked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, track_id)
+);
+
+CREATE TABLE playlist_likes (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    playlist_id UUID NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    liked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, playlist_id)
+);
+
+CREATE TABLE friendships (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, friend_id),
+    CHECK (user_id <> friend_id)
+);
+
+CREATE TABLE friend_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(from_user_id, to_user_id)
+);
+
+CREATE TABLE user_now_playing (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    track_id UUID REFERENCES tracks(id) ON DELETE SET NULL,
+    room_id UUID REFERENCES listening_rooms(id) ON DELETE SET NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tracks_uploaded_by ON tracks(uploaded_by);
+CREATE INDEX idx_tracks_genre ON tracks(genre);
+CREATE INDEX idx_playlists_owner ON playlists(owner_id);
+CREATE INDEX idx_room_queue_room ON room_queue(room_id, position);
+CREATE INDEX idx_track_likes_user ON track_likes(user_id);
+CREATE INDEX idx_friendships_user ON friendships(user_id);
+CREATE INDEX idx_friend_requests_to ON friend_requests(to_user_id, status);
+]]>
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
