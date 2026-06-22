@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+  <changeSet id="004-track-release-year" author="syncplay">
+    <sql splitStatements="true" endDelimiter=";">
+<![CDATA[
+-- Год релиза трека. Заполняется через MusicBrainz-обогащение
+-- (POST /api/tracks/{id}/refine-metadata).
+ALTER TABLE tracks ADD COLUMN release_year INT;
+]]>
+    </sql>
+  </changeSet>
+
+</databaseChangeLog>

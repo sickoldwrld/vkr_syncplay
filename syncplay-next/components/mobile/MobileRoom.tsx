@@ -2,6 +2,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Cover, coverStyle, fmt } from '@/components/Icons';
+import VoteSkipBar, { type SkipVoteState } from '@/components/VoteSkipBar';
+import ReactionLayer from '@/components/ReactionLayer';
+import ReactionPicker from '@/components/ReactionPicker';
+import { useRoomSession } from '@/lib/roomSession';
 
 type RoomTab = 'player' | 'queue' | 'chat';
 
@@ -18,10 +22,12 @@ interface QueueItem {
   title?: string;
   artist?: string;
   coverKey?: string | null;
+  votes?: number;
+  hasMyVote?: boolean;
 }
 interface ChatMessage { user: string; text: string }
 
-interface Metrics { rtt: number; avg: number; jitter: number; offset: number }
+interface Metrics { rtt: number; avg: number; jitter: number; offset: number; drift: number }
 
 interface Props {
   roomId: string;
@@ -39,21 +45,51 @@ interface Props {
   chatInput: string;
   needsTap: boolean;
   metrics: Metrics;
+  skipVote: SkipVoteState;
   setChatInput: (s: string) => void;
   cmd: (type: string, extra?: Record<string, unknown>) => void;
   onAddToQueue: (trackId: string) => Promise<void> | void;
   onTapToPlay: () => Promise<void> | void;
   onSendChat: () => void;
   onLeave: () => Promise<void> | void;
+  onVote: (queueId: string) => Promise<void> | void;
+  onVoteSkip: () => void;
 }
 
 const Eq = () => <span className="sp-eq"><span /><span /><span /><span /></span>;
 
+/** Кнопка голоса за трек в очереди: сердечко + счётчик. */
+function VoteButton({ votes, voted, onClick }:
+  { votes: number; voted: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      aria-label={voted ? 'Убрать голос' : 'Проголосовать'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        padding: '6px 10px', borderRadius: 999,
+        border: '1px solid var(--glass-border)',
+        background: voted ? 'oklch(0.78 0.11 var(--accent-h) / 0.18)' : 'var(--glass)',
+        color: voted ? 'var(--accent)' : 'var(--ink-dim)',
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: "'Space Grotesk', sans-serif",
+        cursor: 'pointer',
+        flexShrink: 0,
+        transition: 'all 0.15s',
+      }}
+    >
+      <Icon.Heart size={12} filled={voted} />
+      {votes > 0 && <span>{votes}</span>}
+    </button>
+  );
+}
+
 export default function MobileRoom({
   roomId, connected, closeReason, loading, isHost,
   nowTrack, playing, progressSec, durationSec,
-  queue, tracks, chat, chatInput, needsTap, metrics,
-  setChatInput, cmd, onAddToQueue, onTapToPlay, onSendChat, onLeave,
+  queue, tracks, chat, chatInput, needsTap, metrics, skipVote,
+  setChatInput, cmd, onAddToQueue, onTapToPlay, onSendChat, onLeave, onVote, onVoteSkip,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<RoomTab>('player');
@@ -139,8 +175,10 @@ export default function MobileRoom({
           needsTap={needsTap}
           loading={loading}
           metrics={metrics}
+          skipVote={skipVote}
           onSeek={handleSeek}
           onTapToPlay={onTapToPlay}
+          onVoteSkip={onVoteSkip}
           cmd={cmd}
         />
       )}
@@ -151,6 +189,7 @@ export default function MobileRoom({
           tracks={tracks}
           isHost={isHost}
           onAddToQueue={onAddToQueue}
+          onVote={onVote}
           cmd={cmd}
         />
       )}
@@ -249,8 +288,8 @@ function CountBadge({ n }: { n: number }) {
 /* ─── NOW PLAYING TAB ─── */
 function NowTab({
   nowTrack, playing, progressSec, durationSec, remaining,
-  isHost, needsTap, loading, metrics,
-  onSeek, onTapToPlay, cmd,
+  isHost, needsTap, loading, metrics, skipVote,
+  onSeek, onTapToPlay, onVoteSkip, cmd,
 }: {
   nowTrack: Track | null;
   playing: boolean;
@@ -261,17 +300,29 @@ function NowTab({
   needsTap: boolean;
   loading: boolean;
   metrics: Metrics;
+  skipVote: SkipVoteState;
   onSeek: (e: React.MouseEvent) => void;
   onTapToPlay: () => Promise<void> | void;
+  onVoteSkip: () => void;
   cmd: (type: string, extra?: Record<string, unknown>) => void;
 }) {
+  const driftAbs = Math.abs(metrics.drift);
+  const driftColor = driftAbs < 80
+    ? 'oklch(0.85 0.15 140)'
+    : driftAbs < 300
+      ? 'oklch(0.85 0.18 90)'
+      : 'oklch(0.7 0.2 30)';
+  const session = useRoomSession();
   return (
     <div className="sp-scroll" style={{ paddingTop: 4 }}>
-      {/* Cover */}
-      <div
-        className="sp-np-cov-wrap"
-        style={nowTrack ? coverStyle(nowTrack.id) : { background: 'var(--glass)' }}
-      />
+      {/* Cover with floating reactions overlay */}
+      <div style={{ position: 'relative' }}>
+        <div
+          className="sp-np-cov-wrap"
+          style={nowTrack ? coverStyle(nowTrack.id) : { background: 'var(--glass)' }}
+        />
+        <ReactionLayer reactions={session.reactions} />
+      </div>
 
       {/* Title + artist */}
       <div className="sp-np-title-row" style={{ marginTop: 4 }}>
@@ -351,9 +402,21 @@ function NowTab({
         </button>
       )}
 
+      {nowTrack && (
+        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+          <ReactionPicker onSend={session.sendReaction} />
+        </div>
+      )}
+
+      {nowTrack && (
+        <div style={{ marginTop: 14 }}>
+          <VoteSkipBar state={skipVote} onVote={onVoteSkip} />
+        </div>
+      )}
+
       {/* Metrics (compact, secondary) */}
-      <div style={{
-        marginTop: 18,
+      <div data-testid="drift-bar-mobile" style={{
+        marginTop: 14,
         padding: '8px 12px',
         borderRadius: 12,
         background: 'var(--glass)',
@@ -364,6 +427,9 @@ function NowTab({
         display: 'flex', justifyContent: 'space-between', gap: 8,
         flexWrap: 'wrap',
       }}>
+        <span data-testid="drift-value-mobile" style={{ color: driftColor, fontWeight: 600 }}>
+          Drift {metrics.drift >= 0 ? '+' : ''}{metrics.drift}ms
+        </span>
         <span>RTT <strong style={{ color: 'oklch(0.85 0.15 140)', fontWeight: 600 }}>{metrics.rtt}ms</strong></span>
         <span>Avg {metrics.avg}ms</span>
         <span style={{ color: metrics.jitter > 40 ? 'oklch(0.7 0.2 30)' : 'inherit' }}>
@@ -378,12 +444,13 @@ function NowTab({
 
 /* ─── QUEUE TAB ─── */
 function QueueTab({
-  queue, tracks, isHost, onAddToQueue, cmd,
+  queue, tracks, isHost, onAddToQueue, onVote, cmd,
 }: {
   queue: QueueItem[];
   tracks: Track[];
   isHost: boolean;
   onAddToQueue: (trackId: string) => Promise<void> | void;
+  onVote: (queueId: string) => Promise<void> | void;
   cmd: (type: string, extra?: Record<string, unknown>) => void;
 }) {
   const [filter, setFilter] = useState('');
@@ -429,6 +496,11 @@ function QueueTab({
                 <div className="sp-f-title">{q.title || 'Трек'}</div>
                 <div className="sp-f-artist">{q.artist || '—'}</div>
               </div>
+              <VoteButton
+                votes={q.votes ?? 0}
+                voted={!!q.hasMyVote}
+                onClick={() => onVote(q.id)}
+              />
             </div>
           </div>
         ))

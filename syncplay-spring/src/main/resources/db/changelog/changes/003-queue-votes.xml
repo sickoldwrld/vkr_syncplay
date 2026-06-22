@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+  <changeSet id="003-queue-votes" author="syncplay">
+    <sql splitStatements="true" endDelimiter=";">
+<![CDATA[
+-- Голосование за треки в очереди комнаты. Каждый пользователь может оставить
+-- 1 голос за каждый item очереди. Голос снимается повторным запросом.
+CREATE TABLE room_queue_votes (
+    queue_id UUID NOT NULL REFERENCES room_queue(id) ON DELETE CASCADE,
+    user_id  UUID NOT NULL REFERENCES users(id)      ON DELETE CASCADE,
+    voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (queue_id, user_id)
+);
+
+CREATE INDEX idx_room_queue_votes_queue ON room_queue_votes(queue_id);
+]]>
+    </sql>
+  </changeSet>
+
+</databaseChangeLog>

@@ -1,6 +1,10 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import { ToastProvider } from '@/components/Toast';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { RoomSessionProvider } from '@/lib/roomSession';
+import MiniPlayer from '@/components/MiniPlayer';
 
 export const metadata: Metadata = {
   title: 'SyncPlay',
@@ -44,7 +48,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="blob blob-4" />
         </div>
         <div className="noise" aria-hidden />
-        {children}
+        <ErrorBoundary>
+          <ToastProvider>
+            <RoomSessionProvider>
+              {children}
+              <MiniPlayer />
+            </RoomSessionProvider>
+          </ToastProvider>
+        </ErrorBoundary>
         <ServiceWorkerRegister />
       </body>
     </html>

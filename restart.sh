@@ -17,6 +17,21 @@ NEXT_PID_FILE="$LOG_DIR/next.pid"
 
 mkdir -p "$LOG_DIR"
 
+# LAN IP машины. Меняется при смене сети (DHCP/раздача с телефона), поэтому
+# вычисляем на каждом запуске и не хардкодим — иначе WS клиента бьётся в старый
+# адрес и падает с "[ws] error event".
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
+
+# Прописывает текущий LAN IP в NEXT_PUBLIC_SYNC_WS_URL фронтенда. Переменная
+# NEXT_PUBLIC_* инлайнится Next.js при старте dev-сервера, поэтому пишем ДО него.
+write_ws_env() {
+  local env_file="$NEXT_DIR/.env.local"
+  touch "$env_file"
+  grep -v '^NEXT_PUBLIC_SYNC_WS_URL=' "$env_file" > "$env_file.tmp" 2>/dev/null || true
+  mv "$env_file.tmp" "$env_file"
+  echo "NEXT_PUBLIC_SYNC_WS_URL=ws://${LAN_IP}" >> "$env_file"
+}
+
 # ── Цвета ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
@@ -137,6 +152,8 @@ done
 
 # ── 8. Запуск Next.js ───────────────────────────────────────────────────────
 step "Запускаем Next.js"
+write_ws_env
+ok "WS URL для фронтенда: ws://${LAN_IP} (записан в $NEXT_DIR/.env.local)"
 (
   cd "$NEXT_DIR"
   export API_URL="http://localhost:8080"
@@ -156,7 +173,6 @@ for i in $(seq 1 20); do
 done
 
 # ── Итог ────────────────────────────────────────────────────────────────────
-LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
 echo
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo -e "${GREEN}${BOLD}  Стек запущен${RESET}"

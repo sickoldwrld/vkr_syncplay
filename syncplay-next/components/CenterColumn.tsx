@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Icon, Cover, fmtMs } from './Icons';
 import { api } from '@/lib/api';
 import UploadButton from './UploadButton';
+import TrackContextMenu from './TrackContextMenu';
 
 interface Track {
   id: string;
@@ -217,8 +218,19 @@ export default function CenterColumn({ onPlay, currentTrackId, isPlaying, refres
             {filtered.map((t, i) => {
               const active = t.id === currentTrackId;
               return (
-                <div
+                <TrackContextMenu
                   key={t.id}
+                  track={t}
+                  onChanged={reload}
+                  actions={[
+                    { kind: 'like' },
+                    { kind: 'copy-link' },
+                    { kind: 'refine-metadata' },
+                    { kind: 'separator' },
+                    { kind: 'custom', label: 'Воспроизвести', icon: <Icon.Play size={14} />, onClick: () => onPlay(t, filtered) },
+                  ]}
+                >
+                <div
                   className="track-row"
                   onClick={() => onPlay(t, filtered)}
                   style={{
@@ -273,6 +285,7 @@ export default function CenterColumn({ onPlay, currentTrackId, isPlaying, refres
                     {fmtMs(t.durationMs)}
                   </div>
                 </div>
+                </TrackContextMenu>
               );
             })}
           </div>

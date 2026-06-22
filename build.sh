@@ -54,6 +54,17 @@ build_next() {
   if [ ! -d "$NEXT_DIR/node_modules" ] || [ "$NEXT_DIR/package.json" -nt "$NEXT_DIR/node_modules" ]; then
     (cd "$NEXT_DIR" && npm ci) || fail "next npm ci failed"
   fi
+  # NEXT_PUBLIC_SYNC_WS_URL инлайнится в бандл на этапе build — прописываем
+  # актуальный LAN IP машины ДО сборки, иначе клиент будет стучаться по старому
+  # адресу и падать с "[ws] error event".
+  local lan_ip env_file
+  lan_ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
+  env_file="$NEXT_DIR/.env.local"
+  touch "$env_file"
+  grep -v '^NEXT_PUBLIC_SYNC_WS_URL=' "$env_file" > "$env_file.tmp" 2>/dev/null || true
+  mv "$env_file.tmp" "$env_file"
+  echo "NEXT_PUBLIC_SYNC_WS_URL=ws://${lan_ip}" >> "$env_file"
+  ok "WS URL: ws://${lan_ip} (записан в .env.local)"
   (cd "$NEXT_DIR" && NEXT_TELEMETRY_DISABLED=1 npm run build) || fail "next build failed"
   ok "Next.js собран → $NEXT_DIR/.next"
 }

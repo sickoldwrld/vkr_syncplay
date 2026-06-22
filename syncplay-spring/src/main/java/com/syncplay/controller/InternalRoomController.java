@@ -4,6 +4,7 @@ import com.syncplay.repo.RoomQueueRepo;
 import com.syncplay.repo.RoomRepo;
 import com.syncplay.repo.TrackRepo;
 import com.syncplay.repo.UserRepo;
+import com.syncplay.service.RoomService;
 import com.syncplay.service.WsTokenStore;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,13 +31,15 @@ public class InternalRoomController {
     private final TrackRepo trackRepo;
     private final UserRepo userRepo;
     private final WsTokenStore wsTokenStore;
+    private final RoomService roomService;
 
-    public InternalRoomController(RoomRepo r, RoomQueueRepo q, TrackRepo t, UserRepo u, WsTokenStore w) {
+    public InternalRoomController(RoomRepo r, RoomQueueRepo q, TrackRepo t, UserRepo u, WsTokenStore w, RoomService rs) {
         this.roomRepo = r;
         this.queueRepo = q;
         this.trackRepo = t;
         this.userRepo = u;
         this.wsTokenStore = w;
+        this.roomService = rs;
     }
 
     private boolean authorized(HttpServletRequest req) {
@@ -65,6 +68,8 @@ public class InternalRoomController {
             m.put("id", r.getId().toString());
             m.put("hostId", r.getHostId().toString());
             m.put("name", r.getName());
+            // Co-host: full host set so sync can authorize PLAY/PAUSE/SKIP/SEEK for every host.
+            m.put("hostIds", roomService.getHostIds(id).stream().map(UUID::toString).toList());
             return ResponseEntity.ok(m);
         }).orElse(ResponseEntity.notFound().build());
     }

@@ -40,6 +40,12 @@ minio:
 
 internal:
   secret: ${INTERNAL_SECRET:syncplay-internal-secret}
+  sync-url: ${SYNC_URL:http://sync:3002}
+
+musicbrainz:
+  url: ${MUSICBRAINZ_URL:https://musicbrainz.org/ws/2}
+  cover-art-url: ${COVER_ART_URL:https://coverartarchive.org}
+  user-agent: ${MUSICBRAINZ_UA:SyncPlay/1.0 (contact@syncplay.local)}
 
 cors:
   # Точные origin'ы (через запятую). По умолчанию — localhost.

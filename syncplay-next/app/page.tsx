@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { startShadowWatchdog } from '@/lib/audioWatchdog';
 import { useRouter } from 'next/navigation';
 import LeftColumn from '@/components/LeftColumn';
 import CenterColumn from '@/components/CenterColumn';
@@ -155,7 +156,15 @@ export default function HomePage() {
   // Audio events
   useEffect(() => {
     const a = audioRef.current; if (!a) return;
-    const onTime = () => { if (!isNaN(a.duration)) { setProgress(a.currentTime); setDuration(a.duration); } };
+    // Always advance progress from currentTime. Only update duration when the
+    // element reports a finite positive value — for MP3s streamed without
+    // Content-Length a.duration is Infinity, and setDuration(Infinity) freezes
+    // the progress bar at 0% (progress / Infinity). Track-metadata fallback
+    // below seeds duration from the server-reported durationMs.
+    const onTime = () => {
+      setProgress(a.currentTime);
+      if (isFinite(a.duration) && a.duration > 0) setDuration(a.duration);
+    };
     const onEnd = () => {
       // История
       const cur = currentTrackRef.current;
@@ -183,9 +192,31 @@ export default function HomePage() {
       setPlaying(false);
     };
     a.addEventListener('timeupdate', onTime);
+    a.addEventListener('loadedmetadata', onTime);
     a.addEventListener('ended', onEnd);
-    return () => { a.removeEventListener('timeupdate', onTime); a.removeEventListener('ended', onEnd); };
+    return () => {
+      a.removeEventListener('timeupdate', onTime);
+      a.removeEventListener('loadedmetadata', onTime);
+      a.removeEventListener('ended', onEnd);
+    };
   }, [pickNextIndex, playInternal]);
+
+  // Stream-stall watchdog. The HTTP stream silently breaks mid-track on long
+  // listens (proxy idle, MinIO connection drop) — `<audio>` freezes
+  // currentTime without firing `error`. Shadow watchdog allocates an off-DOM
+  // backup audio element that pre-buffers the same URL over an independent
+  // HTTP connection; on freeze it does a fast reload at the saved position
+  // (~200ms blip instead of forever-freeze).
+  useEffect(() => startShadowWatchdog({ getActive: () => audioRef.current }), []);
+
+  // Seed duration from the server-reported track metadata on every track change.
+  // Reliable regardless of how the browser sees the stream.
+  useEffect(() => {
+    if (currentTrack?.durationMs && currentTrack.durationMs > 0) {
+      setDuration(currentTrack.durationMs / 1000);
+      setProgress(0);
+    }
+  }, [currentTrack?.id, currentTrack?.durationMs]);
 
   // Главный play(): принимает track + опциональный context-список
   function play(track: Track, list?: Track[]) {
@@ -341,6 +372,11 @@ export default function HomePage() {
         onShuffle={toggleShuffle}
         repeat={repeat}
         onRepeat={cycleRepeat}
+        onSleepTrigger={() => {
+          // Sleep timer сработал — поставить на паузу
+          const a = audioRef.current;
+          if (a && !a.paused) { a.pause(); setPlaying(false); }
+        }}
         volume={volume}
         onVolumeChange={setVolume}
       />

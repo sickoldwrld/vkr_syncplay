@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { Icon, Cover, fmt } from './Icons';
 import { api } from '@/lib/api';
+import SleepTimer from './SleepTimer';
 
 interface Track {
   id: string; title: string; artist: string; durationMs: number;
@@ -26,6 +27,8 @@ interface Props {
   onRepeat?: () => void;
   volume?: number; // 0..1
   onVolumeChange?: (v: number) => void;
+  /** Если задан — рендерится Sleep Timer. По срабатыванию вызывается этот колбэк (обычно pause). */
+  onSleepTrigger?: () => void;
 }
 
 export default function Player({
@@ -35,6 +38,7 @@ export default function Player({
   shuffle = false, onShuffle,
   repeat = 'off', onRepeat,
   volume = 1, onVolumeChange,
+  onSleepTrigger,
 }: Props) {
   const barRef = useRef<HTMLDivElement>(null);
   const volRef = useRef<HTMLDivElement>(null);
@@ -151,6 +155,7 @@ export default function Player({
             <span /><span /><span /><span /><span /><span />
           </div>
           <button className="icon-btn" title="Очередь"><Icon.Queue /></button>
+          {onSleepTrigger && <SleepTimer onTrigger={onSleepTrigger} />}
           <div className="volume" title={`Громкость: ${Math.round(volume * 100)}%`}>
             <button
               onClick={toggleMute}

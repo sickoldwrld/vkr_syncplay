@@ -7,5 +7,7 @@
 
     <include file="db/changelog/changes/001-initial-schema.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/002-listen-history.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/003-queue-votes.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/004-track-release-year.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

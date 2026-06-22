@@ -47,6 +47,16 @@ case "${1:-help}" in
     echo "✓ jar пересобран. Перезапусти Spring (Ctrl+C и ./dev.sh spring)."
     ;;
   next)
+    # NEXT_PUBLIC_SYNC_WS_URL инлайнится при старте dev-сервера — пишем актуальный
+    # LAN IP ДО запуска, иначе клиент стучится по старому адресу ([ws] error event).
+    # Порт указываем явно (:3002), иначе при отсутствии nginx-прокси на :80
+    # браузер пытается стучаться в дефолтный 80 и валится с "ws error event".
+    SYNC_PORT="${SYNC_PORT:-3002}"
+    touch syncplay-next/.env.local
+    grep -v '^NEXT_PUBLIC_SYNC_WS_URL=' syncplay-next/.env.local > syncplay-next/.env.local.tmp 2>/dev/null || true
+    mv syncplay-next/.env.local.tmp syncplay-next/.env.local
+    echo "NEXT_PUBLIC_SYNC_WS_URL=ws://${LAN_IP}:${SYNC_PORT}" >> syncplay-next/.env.local
+    echo "→ WS URL: ws://${LAN_IP}:${SYNC_PORT} (записан в syncplay-next/.env.local)"
     cd syncplay-next
     # API_URL читается next.config.js на этапе резолва rewrites.
     # При dev-режиме (npm run dev) он перечитывается на каждый рестарт.

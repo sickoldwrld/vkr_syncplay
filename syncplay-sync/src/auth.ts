@@ -2,6 +2,9 @@ import type { TrackMeta } from './types';
 
 const SPRING_URL = process.env.SPRING_URL ?? 'http://spring:8080';
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? 'syncplay-internal-secret';
+// Load-test gate: when BENCH_AUTH=1, accept tokens of the form `u:<userId>`
+// and skip the round-trip to Spring. Off by default — never set this in prod.
+const BENCH_AUTH = process.env.BENCH_AUTH === '1';
 
 export interface AuthUser {
   id: string;
@@ -41,6 +44,12 @@ export async function validateSession(cookie: string): Promise<AuthUser | AuthFa
 /** Consume a one-time WS token via the internal endpoint. */
 export async function validateWsToken(token: string): Promise<AuthUser | AuthFailure> {
   if (!token) return 'no-cookie';
+  // Load-test bypass: `u:<userId>` tokens map straight to a fake user.
+  // Only enabled when BENCH_AUTH=1 is set on the server.
+  if (BENCH_AUTH && token.startsWith('u:')) {
+    const id = token.slice(2);
+    return { id, username: id };
+  }
   try {
     const res = await fetch(`${SPRING_URL}/internal/ws-token/${encodeURIComponent(token)}`, {
       headers: internalHeaders,
@@ -58,11 +67,15 @@ export async function validateWsToken(token: string): Promise<AuthUser | AuthFai
   }
 }
 
-export async function fetchRoomDetail(roomId: string): Promise<{ id: string; hostId: string } | null> {
+export async function fetchRoomDetail(roomId: string): Promise<{ id: string; hostId: string; hostIds?: string[] } | null> {
+  // Load-test bypass: synthesize a room detail so the WS connect can complete
+  // without a running Spring. The first connecting user effectively becomes
+  // host (`__bootstrap__` is normalized in the handler).
+  if (BENCH_AUTH) return { id: roomId, hostId: '__bootstrap__', hostIds: [] };
   try {
     const res = await fetch(`${SPRING_URL}/internal/rooms/${roomId}/detail`, { headers: internalHeaders });
     if (!res.ok) return null;
-    return (await res.json()) as { id: string; hostId: string };
+    return (await res.json()) as { id: string; hostId: string; hostIds?: string[] };
   } catch {
     return null;
   }

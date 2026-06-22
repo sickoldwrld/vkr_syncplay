@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: syncplay-postgres
+    container_name: syncplay-postgres-fixed
     environment:
       POSTGRES_DB: music_streaming
       POSTGRES_USER: musicapp
@@ -17,7 +17,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: syncplay-minio
+    container_name: syncplay-minio-fixed
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -85,6 +85,26 @@ services:
     depends_on:
       - spring
       - sync
+    restart: unless-stopped
+
+  # Reverse proxy. Single public entry on :80 fronting next / sync / spring.
+  # Eliminates direct exposure of :3000 / :3002 / :8080 and solves iOS Safari
+  # mixed-content issues by allowing WS on the same origin as the page.
+  # See nginx/nginx.conf for routing rules.
+  #
+  # Upstreams resolve through host.docker.internal — works whether the apps are
+  # native (./restart.sh, current dev workflow) or containerised. extra_hosts
+  # adds the Linux-side mapping; macOS already resolves it natively.
+  # No depends_on: nginx starts immediately and retries upstream on demand.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: syncplay-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   prometheus:

@@ -26,6 +26,8 @@ public class Track {
     private String minioKey;
     @Column(name = "cover_key")
     private String coverKey;
+    @Column(name = "release_year")
+    private Integer releaseYear;
     @Column(name = "file_size", nullable = false)
     private long fileSize;
     @Column(name = "content_type", nullable = false, length = 50)

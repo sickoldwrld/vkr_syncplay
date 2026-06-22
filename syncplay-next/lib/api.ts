@@ -40,6 +40,12 @@ export function streamUrl(trackId: string): string {
   return `${API}/stream/${trackId}`;
 }
 
+/** Toggle голос за элемент очереди комнаты. Возвращает true если голос ДОБАВЛЕН. */
+export async function voteQueueItem(roomId: string, queueId: string): Promise<boolean> {
+  const r = await api<{ voted: boolean }>('POST', `/rooms/${roomId}/queue/${queueId}/vote`);
+  return r.voted;
+}
+
 /**
  * WebSocket goes directly to Spring on port 8080 — same hostname as the page,
  * so cookies set by the API session are sent automatically (no cross-port

@@ -2,6 +2,7 @@ package com.syncplay.controller;
 
 import com.syncplay.model.Track;
 import com.syncplay.security.AuthHelper;
+import com.syncplay.service.MusicBrainzService;
 import com.syncplay.service.TrackService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,7 +14,10 @@ import java.util.*;
 @RequestMapping("/api/tracks")
 public class TrackController {
     private final TrackService service;
-    public TrackController(TrackService s) { this.service = s; }
+    private final MusicBrainzService musicBrainz;
+    public TrackController(TrackService s, MusicBrainzService mb) {
+        this.service = s; this.musicBrainz = mb;
+    }
 
     @GetMapping
     public List<Map<String, Object>> list(@RequestParam(required = false) String q) {
@@ -54,6 +58,16 @@ public class TrackController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * MusicBrainz-обогащение: ищет recording по (artist + title), берёт лучший
+     * по score результат и обновляет artist / album / releaseYear / coverArt.
+     * Возвращает список фактически изменённых полей и top-5 кандидатов для отладки.
+     */
+    @PostMapping("/{id}/refine-metadata")
+    public Map<String, Object> refineMetadata(@PathVariable UUID id) {
+        return musicBrainz.refineTrack(id);
+    }
+
     private Map<String, Object> toDto(Track t, Set<UUID> likedIds) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", t.getId().toString());
@@ -65,6 +79,7 @@ public class TrackController {
         m.put("contentType", t.getContentType());
         m.put("liked", likedIds.contains(t.getId()));
         m.put("coverKey", t.getCoverKey());
+        m.put("releaseYear", t.getReleaseYear());
         return m;
     }
 }
